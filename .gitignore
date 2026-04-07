@@ -1,0 +1,25 @@
+# Dependencias (se reinstalan con npm install)
+node_modules/
+
+# Datos personales — NO subir
+config.json
+Portfolio/*.csv
+Portfolio/*.json
+Portfolio/Old/
+Analysis/*.json
+Analysis/Old/
+Tracking/tracking.xlsx
+
+# Archivos legacy (no necesarios en GitHub)
+set_up/stox_legacy.html
+
+# Claude Code (memorias y configuración local)
+.claude/
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+
+# Variables de entorno (por si se añaden en el futuro)
+.env
+.env.local

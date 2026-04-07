@@ -1,0 +1,67 @@
+{
+  "_meta": "Campos comunes (todos los buckets): bucket, name, sector, potencial, descripcion, ventaja, por_que_ahora, rango {bajada_max, subida_max}, estimacion {m3, m6, m12}. Core: weight (0-100), rotate (bool). Satellite: priority (número). Wildshots: conviction (1-5), risk, catalyst, tag, tagColor, bear, bull.",
+  "VOO": {
+    "bucket": "Core",
+    "name": "Vanguard S&P 500 ETF",
+    "sector": "ETF",
+    "weight": 90,
+    "rotate": false,
+    "potencial": "+10% (estimado 2026)",
+    "descripcion": "Qué hace la empresa o fondo.",
+    "ventaja": "Por qué destaca frente a la competencia.",
+    "por_que_ahora": "Motivo concreto para invertir ahora.",
+    "rango": {
+      "bajada_max": "-20%",
+      "subida_max": "+15%"
+    },
+    "estimacion": {
+      "m3": 2,
+      "m6": 6,
+      "m12": 12
+    }
+  },
+  "NVDA": {
+    "bucket": "Satellite",
+    "name": "NVIDIA",
+    "sector": "AI / Chips",
+    "priority": 1,
+    "potencial": "+30% (precio objetivo consenso $XXX)",
+    "descripcion": "Qué hace la empresa.",
+    "ventaja": "Por qué destaca frente a la competencia.",
+    "por_que_ahora": "Motivo concreto para invertir ahora.",
+    "rango": {
+      "bajada_max": "-35%",
+      "subida_max": "+50%"
+    },
+    "estimacion": {
+      "m3": -5,
+      "m6": 10,
+      "m12": 30
+    }
+  },
+  "TTWO": {
+    "bucket": "Wildshots",
+    "name": "Take-Two Interactive",
+    "sector": "Gaming",
+    "conviction": 5,
+    "risk": "Medium-High",
+    "catalyst": "GTA VI launch (2026)",
+    "tag": "Primary conviction",
+    "tagColor": "#C5973A",
+    "bear": "Escenario bajista: delay en lanzamiento → -25%.",
+    "bull": "Escenario alcista: lanzamiento exitoso → +80%.",
+    "potencial": "+80% (escenario bull)",
+    "descripcion": "Qué hace la empresa.",
+    "ventaja": "Por qué destaca frente a la competencia.",
+    "por_que_ahora": "Motivo concreto para invertir ahora.",
+    "rango": {
+      "bajada_max": "-40%",
+      "subida_max": "+80%"
+    },
+    "estimacion": {
+      "m3": -8,
+      "m6": 15,
+      "m12": 50
+    }
+  }
+}

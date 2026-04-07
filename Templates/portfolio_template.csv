@@ -1,0 +1,6 @@
+Action,Date,Quantity,Company,Industry,Bucket
+Buy,01/03/2026,90.00 EUR,Vanguard S&P 500 (VOO),ETF,Core
+Buy,01/03/2026,80.00 EUR,Microsoft (MSFT),Technology,Core
+Buy,01/03/2026,125.00 EUR,NVIDIA (NVDA),Technology,Satellite
+Buy,01/03/2026,248.00 EUR,Constellation Energy Corp (CEG),Energy,Wildshots
+Sell,15/03/2026,50.00 EUR,Microsoft (MSFT),Technology,Core
