@@ -4,6 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { spawnSync } from 'child_process'
+import { randomBytes } from 'crypto'
 
 const __dirname   = path.dirname(fileURLToPath(import.meta.url))
 const PORTFOLIO_DIR = path.join(__dirname, 'Portfolio')
@@ -28,6 +29,26 @@ function getLatestJSONPath() {
     .map(f => ({ f, mtime: fs.statSync(path.join(ANALYSIS_DIR, f)).mtimeMs }))
     .sort((a, b) => b.mtime - a.mtime)[0].f
   return path.join(ANALYSIS_DIR, latest)
+}
+
+// In-memory session store: token → role
+const sessions = new Map()
+
+function getUsers() {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'))
+    return cfg.users || []
+  } catch { return [] }
+}
+
+function requireAuth(req, res) {
+  const users = getUsers()
+  if (!users.length) return true // no users configured → open access
+  const token = req.headers['x-session-token']
+  if (token && sessions.has(token)) return true
+  res.writeHead(401)
+  res.end(JSON.stringify({ error: 'Unauthorized' }))
+  return false
 }
 
 export default defineConfig({
@@ -62,8 +83,65 @@ export default defineConfig({
           }
         }
 
+        // ── /api/auth  POST: validate PIN, issue session token ────────────
+        server.middlewares.use('/api/auth', (req, res, next) => {
+          // Skip sub-paths like /api/auth/role (connect strips prefix, so req.url becomes '/role')
+          if (req.url !== '/' && req.url !== '') { next(); return }
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+          if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
+
+          if (req.method === 'POST') {
+            let body = ''
+            req.on('data', chunk => body += chunk)
+            req.on('end', () => {
+              try {
+                const { pin } = JSON.parse(body)
+                const users = getUsers()
+                if (!users.length) {
+                  // No users configured → grant owner access
+                  const token = randomBytes(32).toString('hex')
+                  sessions.set(token, 'owner')
+                  res.writeHead(200)
+                  res.end(JSON.stringify({ ok: true, token, role: 'owner' }))
+                  return
+                }
+                const match = users.find(u => u.pin === pin)
+                if (match) {
+                  const token = randomBytes(32).toString('hex')
+                  sessions.set(token, match.role)
+                  res.writeHead(200)
+                  res.end(JSON.stringify({ ok: true, token, role: match.role }))
+                } else {
+                  res.writeHead(403)
+                  res.end(JSON.stringify({ ok: false, error: 'PIN incorrecto' }))
+                }
+              } catch (e) {
+                res.writeHead(500); res.end(JSON.stringify({ error: e.message }))
+              }
+            })
+          }
+        })
+
+        // ── /api/auth/role  GET: return role for current token ────────────
+        server.middlewares.use('/api/auth/role', (req, res) => {
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          res.setHeader('Access-Control-Allow-Headers', 'X-Session-Token')
+          const token = req.headers['x-session-token']
+          const role = token ? sessions.get(token) : null
+          if (role) {
+            res.writeHead(200)
+            res.end(JSON.stringify({ ok: true, role }))
+          } else {
+            res.writeHead(401)
+            res.end(JSON.stringify({ ok: false }))
+          }
+        })
+
         server.middlewares.use('/api/analysis', (req, res) => {
           res.setHeader('Access-Control-Allow-Origin', '*')
+          if (!requireAuth(req, res)) return
           if (req.method === 'GET') {
             try {
               const jsonPath = getLatestJSONPath()
@@ -82,11 +160,9 @@ export default defineConfig({
         server.middlewares.use('/api/portfolio', (req, res) => {
           res.setHeader('Access-Control-Allow-Origin', '*')
           res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-          res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
-
-          if (req.method === 'OPTIONS') {
-            res.writeHead(204); res.end(); return
-          }
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Session-Token')
+          if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
+          if (!requireAuth(req, res)) return
 
           if (req.method === 'GET') {
             try {
@@ -123,8 +199,9 @@ export default defineConfig({
         server.middlewares.use('/api/config', (req, res) => {
           res.setHeader('Access-Control-Allow-Origin', '*')
           res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-          res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Session-Token')
           if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
+          if (!requireAuth(req, res)) return
 
           if (req.method === 'GET') {
             try {
@@ -157,8 +234,9 @@ export default defineConfig({
         server.middlewares.use('/api/snapshots', (req, res) => {
           res.setHeader('Access-Control-Allow-Origin', '*')
           res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-          res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Session-Token')
           if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
+          if (!requireAuth(req, res)) return
 
           if (req.method === 'POST') {
             let body = ''
@@ -195,11 +273,9 @@ export default defineConfig({
         server.middlewares.use('/api/templates', (req, res) => {
           res.setHeader('Access-Control-Allow-Origin', '*')
           res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-          res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
-
-          if (req.method === 'OPTIONS') {
-            res.writeHead(204); res.end(); return
-          }
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Session-Token')
+          if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
+          if (!requireAuth(req, res)) return
 
           if (req.method === 'POST') {
             let body = ''
