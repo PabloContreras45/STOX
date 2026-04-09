@@ -148,6 +148,30 @@ app.get('/api/analysis', (req, res) => {
   }
 })
 
+// POST /api/upload/portfolio — save uploaded CSV to PORTFOLIO_DIR
+app.post('/api/upload/portfolio', express.text({ type: '*/*', limit: '10mb' }), (req, res) => {
+  if (!requireAuth(req, res)) return
+  try {
+    if (!fs.existsSync(PORTFOLIO_DIR)) fs.mkdirSync(PORTFOLIO_DIR, { recursive: true })
+    fs.writeFileSync(path.join(PORTFOLIO_DIR, 'portfolio.csv'), req.body, 'utf-8')
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// POST /api/upload/analysis — save uploaded JSON to ANALYSIS_DIR
+app.post('/api/upload/analysis', express.text({ type: '*/*', limit: '10mb' }), (req, res) => {
+  if (!requireAuth(req, res)) return
+  try {
+    if (!fs.existsSync(ANALYSIS_DIR)) fs.mkdirSync(ANALYSIS_DIR, { recursive: true })
+    fs.writeFileSync(path.join(ANALYSIS_DIR, 'analysis.json'), req.body, 'utf-8')
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 // POST /api/snapshots — run Python script
 app.post('/api/snapshots', express.text(), (req, res) => {
   if (!requireAuth(req, res)) return

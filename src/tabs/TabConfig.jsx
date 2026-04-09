@@ -36,6 +36,65 @@ export function TabConfig({
   const [users, setUsers]         = useState([]);
   const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | ok | error
 
+  // ── Remote sync state (owner only) ───────────────────────────────────
+  const [remoteUrl, setRemoteUrl]   = useState(() => localStorage.getItem('stox_remote_url') || '');
+  const [remotePin, setRemotePin]   = useState('');
+  const [syncStatus, setSyncStatus] = useState('idle'); // idle | syncing | ok | error
+  const [syncError, setSyncError]   = useState('');
+
+  const handleSync = async () => {
+    setSyncStatus('syncing');
+    setSyncError('');
+    try {
+      // 1. Authenticate against remote server
+      const authRes = await fetch(`${remoteUrl.replace(/\/$/, '')}/api/auth`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: remotePin }),
+      });
+      const authData = await authRes.json();
+      if (!authData.ok) throw new Error('PIN incorrecto en servidor remoto');
+      const remoteToken = authData.token;
+      const base = remoteUrl.replace(/\/$/, '');
+      const headers = { 'X-Session-Token': remoteToken, 'Content-Type': 'text/plain' };
+
+      // 2. Fetch local data
+      const [portfolioRes, analysisRes, configRes] = await Promise.all([
+        fetch('/api/portfolio').catch(() => null),
+        fetch('/api/analysis').catch(() => null),
+        fetch('/api/config'),
+      ]);
+
+      // 3. Push to remote (portfolio + analysis if available, always config)
+      const pushTasks = [];
+      if (portfolioRes?.ok) {
+        const csvText = await portfolioRes.text();
+        pushTasks.push(fetch(`${base}/api/upload/portfolio`, { method: 'POST', headers, body: csvText }));
+      }
+      if (analysisRes?.ok) {
+        const jsonText = await analysisRes.text();
+        pushTasks.push(fetch(`${base}/api/upload/analysis`, { method: 'POST', headers, body: jsonText }));
+      }
+      const configText = await configRes.text();
+      pushTasks.push(fetch(`${base}/api/config`, {
+        method: 'POST',
+        headers: { 'X-Session-Token': remoteToken, 'Content-Type': 'application/json' },
+        body: configText,
+      }));
+
+      const results = await Promise.all(pushTasks);
+      const failed = results.filter(r => !r.ok);
+      if (failed.length) throw new Error(`${failed.length} operación(es) fallaron`);
+
+      setSyncStatus('ok');
+      setTimeout(() => setSyncStatus('idle'), 3000);
+    } catch (e) {
+      setSyncError(e.message);
+      setSyncStatus('error');
+      setTimeout(() => setSyncStatus('idle'), 4000);
+    }
+  };
+
   useEffect(() => {
     if (role !== "owner") return;
     fetch("/api/config", { headers: { "X-Session-Token": localStorage.getItem("stox_token") || "" } })
@@ -329,6 +388,86 @@ Sell,15/03/2026,50.00 EUR,Microsoft (MSFT),Technology,Core`;
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* === REMOTE SYNC (owner only) === */}
+      {role === "owner" && (
+        <div style={{ background: T.ink, border: `1px solid ${T.goldBorder}`, borderRadius: 2, padding: "22px 24px", marginTop: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <p style={{ ...S.serif, margin: 0, fontSize: 18, fontWeight: 600, color: T.goldLight }}>Sincronización remota</p>
+            <span style={{ ...S.label, background: T.goldLight, color: T.neutral, border: `1px solid ${T.goldBorder}`, padding: "2px 10px", borderRadius: 20, fontSize: 9 }}>RAILWAY</span>
+          </div>
+          <p style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: T.inkMuted, margin: "0 0 18px", lineHeight: 1.6 }}>
+            Empuja los datos locales (portfolio CSV, analysis JSON y configuración) al servidor remoto desplegado en Railway con un solo clic. Requiere la URL del servidor y el PIN del Superadmin remoto.
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* URL input */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ ...S.label, fontSize: 9, color: T.inkFaint }}>URL del servidor remoto</label>
+              <input
+                type="url"
+                placeholder="https://tu-app.railway.app"
+                value={remoteUrl}
+                onChange={e => { setRemoteUrl(e.target.value); localStorage.setItem('stox_remote_url', e.target.value); }}
+                style={{
+                  ...S.mono, fontSize: 13, padding: "8px 12px",
+                  background: T.bg, border: `1px solid ${T.borderDark}`,
+                  borderRadius: 2, color: T.ink, outline: "none", width: "100%", boxSizing: "border-box",
+                }}
+                onFocus={e => { e.currentTarget.style.borderColor = T.gold; }}
+                onBlur={e => { e.currentTarget.style.borderColor = T.borderDark; }}
+              />
+            </div>
+
+            {/* PIN input */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ ...S.label, fontSize: 9, color: T.inkFaint }}>PIN del Superadmin remoto</label>
+              <input
+                type="password"
+                placeholder="PIN"
+                value={remotePin}
+                onChange={e => setRemotePin(e.target.value)}
+                style={{
+                  ...S.mono, fontSize: 16, width: 120, padding: "8px 12px",
+                  background: T.bg, border: `1px solid ${T.borderDark}`,
+                  borderRadius: 2, color: T.ink, outline: "none",
+                  letterSpacing: "0.3em",
+                }}
+                onFocus={e => { e.currentTarget.style.borderColor = T.gold; }}
+                onBlur={e => { e.currentTarget.style.borderColor = T.borderDark; }}
+              />
+            </div>
+
+            {/* Sync button + status */}
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 4 }}>
+              <button
+                onClick={handleSync}
+                disabled={syncStatus === 'syncing' || !remoteUrl || !remotePin}
+                style={{
+                  ...S.label, fontSize: 10, padding: "9px 22px", borderRadius: 2,
+                  cursor: (syncStatus === 'syncing' || !remoteUrl || !remotePin) ? "default" : "pointer",
+                  background: (syncStatus === 'syncing' || !remoteUrl || !remotePin) ? "transparent" : T.goldLight,
+                  border: `1px solid ${(syncStatus === 'syncing' || !remoteUrl || !remotePin) ? T.borderDark : T.goldBorder}`,
+                  color: (syncStatus === 'syncing' || !remoteUrl || !remotePin) ? T.inkFaint : T.neutral,
+                  transition: "all 0.2s",
+                }}
+              >
+                {syncStatus === 'syncing' ? 'Sincronizando…' : 'Sincronizar ahora'}
+              </button>
+
+              {syncStatus === 'syncing' && (
+                <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: T.inkMuted }}>Enviando datos al servidor remoto…</span>
+              )}
+              {syncStatus === 'ok' && (
+                <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: T.positive }}>✓ Sincronización completada</span>
+              )}
+              {syncStatus === 'error' && (
+                <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: T.red }}>✗ {syncError}</span>
+              )}
+            </div>
           </div>
         </div>
       )}

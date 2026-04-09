@@ -230,6 +230,46 @@ export default defineConfig({
           }
         })
 
+        // ── /api/upload/portfolio  POST: receive CSV and save ─────────────
+        server.middlewares.use('/api/upload/portfolio', (req, res) => {
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Session-Token')
+          if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
+          if (!requireAuth(req, res)) return
+          let body = ''
+          req.on('data', chunk => body += chunk)
+          req.on('end', () => {
+            try {
+              if (!fs.existsSync(PORTFOLIO_DIR)) fs.mkdirSync(PORTFOLIO_DIR, { recursive: true })
+              fs.writeFileSync(path.join(PORTFOLIO_DIR, 'portfolio.csv'), body, 'utf-8')
+              res.writeHead(200); res.end(JSON.stringify({ ok: true }))
+            } catch (e) {
+              res.writeHead(500); res.end(JSON.stringify({ error: e.message }))
+            }
+          })
+        })
+
+        // ── /api/upload/analysis  POST: receive JSON and save ─────────────
+        server.middlewares.use('/api/upload/analysis', (req, res) => {
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Session-Token')
+          if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
+          if (!requireAuth(req, res)) return
+          let body = ''
+          req.on('data', chunk => body += chunk)
+          req.on('end', () => {
+            try {
+              if (!fs.existsSync(ANALYSIS_DIR)) fs.mkdirSync(ANALYSIS_DIR, { recursive: true })
+              fs.writeFileSync(path.join(ANALYSIS_DIR, 'analysis.json'), body, 'utf-8')
+              res.writeHead(200); res.end(JSON.stringify({ ok: true }))
+            } catch (e) {
+              res.writeHead(500); res.end(JSON.stringify({ error: e.message }))
+            }
+          })
+        })
+
         // ── /api/snapshots  POST: append rows to tracking.xlsx ─────────
         server.middlewares.use('/api/snapshots', (req, res) => {
           res.setHeader('Access-Control-Allow-Origin', '*')
